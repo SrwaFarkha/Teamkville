@@ -1,0 +1,247 @@
+﻿@page "/product/{id:int}"
+@using Blazored.Toast.Services;
+@using TeamKville.Client.Pages;
+@using TeamKville.Shared;
+@using TeamKville.Shared.Dto;
+@using TeamKville.Shared.Models;
+@using Blazored.LocalStorage;
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject IToastService ToastService
+
+<div class="container">
+	@if(currentProduct == null)
+	{
+		<p>Laddar...</p>
+	}
+	else
+	{
+		<div class="container d-flex h-100">		
+			<div class="container mt-5 border border-2 d-flex justify-content-center w-75">
+			
+				<img src="@imagesrc" style="height: 400px; width: auto; object-fit: contain;" />
+			</div>
+			<div class="card mt-5 w-25 h-75 border border-0 rounded-0" style="background-color:#c2d1d9; ">
+				<div class="card-body" style="height: 404px; ">
+					<h5 class="text-center">Detaljer</h5>
+					<div class="card-text h-50 mt-5">					
+
+						<p class="p-0 m-0"><b>Kategori:</b> @currentProduct.Category.Name</p>
+							@if(currentProduct.Category.CategoryId == 1)
+							{
+							<p class="p-0 m-0"><b>Genre:</b> @currentProduct.Genre.Name</p>
+							<p class="p-0 m-0"><b>Åldersgräns:</b> @currentProduct.Age</p>
+							}
+						
+										
+					</div>
+
+					<div class="stars d-flex align-items-center justify-content-center pb-2">
+						@if(currentProduct.Comments.Count() > 0)
+						{					
+							for (int r = 1; r <= 5; r++)
+							{
+								if (r <= reviews.Average(p => p.Rating))
+								{
+									<i class="fa fa-star" style="color: #ffa500;"></i>
+								}
+								else
+								{
+									<i class="fa fa-star" style="color: #6c757d;"></i>
+								}
+							}
+						}
+              
+					</div>
+					<div class="text-center">
+					<h3>@currentProduct.Price kr</h3>						
+					<button class="btn btn-primary" @onclick="AddToShoppingCart">Köp</button>
+					<AuthorizeView>
+						@if (SharedClass.activeUser.IsAdmin)
+						{
+							<button class="btn btn-primary pt-2" @onclick="ShowProductEdit">Redigera</button>
+						}
+					</AuthorizeView>
+
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="container h-100 w-75 mt-3" style="margin-left: 0">		
+			<h2>@currentProduct.Name</h2>
+			<p>
+				@currentProduct.Description
+			</p>		
+		</div>
+
+		<div class="container d-flex pb-4 h-auto">
+			<div class="container card mt-3 w-75 h-auto border border-0 rounded-0" style="background-color: #c2d1d9; margin-left: 0px;">
+			<div class="card-body pb-4">		
+				<h3 class="card-title">Recensioner</h3>			
+				<AuthorizeView>
+					<button type="button" class="btn btn-primary text-center m-1 mb-3 fa-solid fa-pen-to-square" @onclick="NewReview"></button>
+				</AuthorizeView>
+				<button type="button" class="btn btn-primary text-center m-1 mb-3 fa fa-list" @onclick="ShowReviews"></button>
+								
+				@if (currentProduct.Comments.Count() > 0)
+				{
+					@foreach (var review in reviews)
+					{
+						<div class="card d-flex">
+							<div class="card-body">
+								<div class="card-title m-0">
+									<h5>@review.Name</h5>
+									<div class="stars ms-auto mb-1">
+										@for (int r = 1; r <= 5; r++)
+										{
+											if (r <= review.Rating)
+											{
+												<i class="fa fa-star" style="color: #ffa500;"></i>
+											}
+											else
+											{
+												<i class="fa fa-star" style="color: #6c757d;"></i>
+											}
+										}
+
+									</div>
+								</div>
+								<div class="card-text" style="text-overflow: ellipsis; white-space: nowrap; overflow:hidden;">
+									@review.Text
+								</div>
+								<em>@review.Date.ToString("yyyy-MM-dd")</em>
+							</div>
+						</div>
+					}
+
+				}
+				else
+				{
+					<p>Inga recensioner ännu.</p>
+				}
+			</div>
+		</div>
+		</div>
+
+	}
+
+</div>
+
+
+
+@code {
+	[Parameter]
+	public int Id { get; set; }
+
+	[CascadingParameter] IModalService Modal { get; set; } = default!;
+
+	public string imagesrc;
+
+	ProductDto currentProduct;
+	List<CommentDto> reviews;
+
+	double averageRating;
+
+	protected override async Task OnInitializedAsync()
+	{
+		currentProduct = await HttpClient.GetFromJsonAsync<ProductDto>(HttpClient.BaseAddress + "api/product/" + Id);
+
+		if(!currentProduct.IsActive)
+		{
+			NavigationManager.NavigateTo("/");
+		}
+
+		reviews = currentProduct.Comments.ToList();
+	}
+
+	protected override async Task OnParametersSetAsync()
+	{
+		imagesrc = SharedClass.GetImage("product",currentProduct.Name);	
+	}
+
+	private async void AddToShoppingCart()
+	{
+		if(SharedClass.activeUser != null)
+		{
+			await HttpClient.PostAsJsonAsync<AddProductToShoppingCartModel>(HttpClient.BaseAddress + "api/user/shoppingcart/add", new AddProductToShoppingCartModel
+			{
+				ProductId = currentProduct.Id,
+				Quantity = 1,
+				UserId = SharedClass.activeUser.UserId
+			});
+		}
+		else
+		{
+			await LocalStorage.SetItemAsync<CartItemDto>(currentProduct.Id.ToString(), new CartItemDto
+			{
+				ProductId = currentProduct.Id,
+				Quantity = 1,
+				Price = currentProduct.Price,
+				ProductName = currentProduct.Name,
+				TotalProductPrice = currentProduct.Price * 1
+			});
+		}
+
+		ToastService.ShowSuccess($"'{currentProduct.Name}' tillagd i varukorgen.");
+	}
+
+	private async Task ShowProductEdit()
+	{
+		var options = new ModalOptions
+		{
+			Size = ModalSize.Large,
+			AnimationType = ModalAnimationType.FadeInOut,
+			HideCloseButton = false,
+			DisableBackgroundCancel = true
+		};
+
+		var parameters = new ModalParameters().Add(nameof(EditProduct.product), currentProduct);
+		var modal = Modal.Show<EditProduct>("Redigera Produkt", parameters, options);
+		var result = await modal.Result;
+	}
+
+	private async Task ShowReviews()
+	{
+		var options = new ModalOptions
+		{
+			Size = ModalSize.Large,
+			AnimationType = ModalAnimationType.FadeInOut,
+			HideCloseButton = false,
+			DisableBackgroundCancel = true
+		};
+
+
+		var parameters = new ModalParameters().Add(nameof(Reviews.reviews), reviews);
+		var modal = Modal.Show<Reviews>("Recensioner", parameters, options);
+		var result = await modal.Result;
+	}
+
+	private async Task NewReview()
+	{
+		var options = new ModalOptions
+			{
+				Size = ModalSize.Large,
+				AnimationType = ModalAnimationType.FadeInOut,
+				HideCloseButton = false,
+				DisableBackgroundCancel = true
+			};
+
+		var parameters = new ModalParameters().Add(nameof(CreateReview.productId), Id);
+		var modal = Modal.Show<CreateReview>("Ny Recension", parameters,options);
+		var result = await modal.Result;
+
+		await LoadData();
+		StateHasChanged();
+
+
+	}
+
+	private async Task LoadData()
+	{
+		currentProduct = await HttpClient.GetFromJsonAsync<ProductDto>(HttpClient.BaseAddress + "api/product/" + Id);
+		reviews = currentProduct.Comments.ToList();
+
+	}
+
+}

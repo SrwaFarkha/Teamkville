@@ -1,0 +1,280 @@
+@page "/profile"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using TeamKville.Shared;
+@using TeamKville.Shared.Models;
+@using TeamKville.Shared.Dto;
+@using Microsoft.Graph
+@inject Microsoft.Graph.GraphServiceClient GraphServiceClient
+@inject NavigationManager Navigation
+@inject SignOutSessionStateManager SignOutManager
+@inject HttpClient HttpClient
+@inject IToastService ToastService
+@attribute [Authorize]
+
+
+
+@if (dbUser == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized>     
+        <div class="container-fluid">
+            <div class="row flex-nowrap">
+                <div class="col-auto col-md-3 col-xl-2 px-sm-2 px-0 bg-sidebar">
+                    <div class="d-flex flex-column align-items-center align-items-sm-start px-3 pt-2 text-white min-vh-100">
+                        <a class="d-flex  pb-3 mb-md-0 me-md-auto text-white text-decoration-none align-items-center">
+                            <span class="fs-5 d-none d-sm-inline m-2">Användarprofil</span>
+                        </a>
+                        <hr />
+                            <ul class=" bg-sidebar nav nav-pills flex-column mb-sm-auto mb-0 align-items-center align-items-sm-start" id="menu">
+                            <li class="nav-item">
+                                <button @onclick="@(() => {pageName = "userinfo";})" class="nav-link align-middle px-0">
+                                    <i class="fa-solid fa-user"></i> <span class="ms-2 d-none d-sm-inline">Profil</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button @onclick="@(() => {pageName = "orders";})" data-bs-toggle="collapse" class="nav-link px-0 align-middle">
+                                    <i class="fa-solid fa-basket-shopping"></i> <span class="ms-2 d-none d-sm-inline">Beställningar</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button @onclick="@(() => {pageName = "payment";})" class="nav-link px-0 align-middle">
+                                <i class="fa-regular fa-credit-card"></i> <span class="ms-3 d-none d-sm-inline">Betalningsinfo</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button class="nav-link px-0 align-middle" @onclick="BeginLogout">
+                                <i class="fa-solid fa-right-from-bracket"></i> <span class="ms-3 d-none d-sm-inline">Logga ut</span>
+                                </button>
+                            </li>
+                            @if(dbUser.IsAdmin)
+                            {
+                                <li>
+                                    <button class="nav-link px-0 align-middle" @onclick="AdminNavigation">
+                                    <i class="fa-solid fa-crown"></i> <span class="ms-3 d-none d-sm-inline">Admin</span>
+                                    </button>
+                                </li>
+                            }                          
+                        </ul>
+                    </div>
+                </div>
+                <div>
+                    <div class="container" style="width: 50%; margin-left: 0px; position: relative;">
+                        @switch(pageName)
+                        {
+                           case "userinfo":
+                       
+                           <h3 class="pb-2 pt-3">Profilinställningar</h3>
+                                <EditForm Model="@dbUser" OnValidSubmit="@HandleFormSubmit" @ref="editForm">
+                                    <ChildContent Context="editContext">
+                                        <DataAnnotationsValidator />
+                                        <ValidationSummary />
+
+                                        <div class="mb-3">
+                                            <label for="FirstName" class="form-label">Namn:</label>
+                                            <input type="text" id="FirstName" @bind="dbUser.FirstName" class="form-control" placeholder="@dbUser.FirstName" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="LastName" class="form-label">Efternamn:</label>
+                                            <input type="text" id="LastName" @bind="dbUser.LastName" class="form-control" placeholder="@dbUser.LastName" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="Email" class="form-label">Email:</label>
+                                            <input type="email" id="Email" @bind="dbUser.Email" class="form-control" placeholder="@dbUser.Email" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="PhoneNumber" class="form-label">Telefon:</label>
+                                            <input type="text" id="PhoneNumber" @bind="dbUser.PhoneNumber" class="form-control" placeholder="@dbUser.PhoneNumber" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="City" class="form-label">Stad:</label>
+                                            <input type="text" id="City" @bind="dbUser.Address.City" class="form-control" placeholder="@dbUser.Address.City" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="Street" class="form-label">Gata:</label>
+                                            <input type="text" id="Street" @bind="dbUser.Address.Street" class="form-control" placeholder="@dbUser.Address.Street" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="PostNumber" class="form-label">Postnummer:</label>
+                                            <input type="text" id="PostNumber" @bind="dbUser.Address.PostNumber" class="form-control" placeholder="@dbUser.Address.PostNumber" />
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary">Spara Ändringar</button>
+                                    </ChildContent>
+                                </EditForm>
+                        
+                            break;
+                            case "orders":
+                                <h3 class="pb-2 pt-3">Beställningar</h3>
+                                @if (orderHistory == null)
+                                {
+                                    <p>Hämtar...</p>
+                                }
+                                else
+                                {
+                                    <hr />
+                                    <ul>                                  
+                                        @foreach(var order in orderHistory)
+                                        {
+                                            <li>
+                                                <p><b>Ordernr:</b> @order.OrderId</p>
+                                                <p><b>Datum:</b> @order.OrderDate</p>
+                                                <p><b>Produkter:</b></p>
+                                                <ul class="border border-2">
+                                                        @foreach (var product in order.OrderedProductsDto)
+                                                        {
+                                                            <li>
+                                                                <p class="p-0 pt-1"><b>@product.ProductDto.Name</b></p>
+                                                                <p class="p-0">@product.ProductDto.Price kr</p>
+                                                            </li>
+                                                        }
+                                                </ul>
+                                            
+                                            </li>
+                                            <p class="pt-2"><b>Totalt: </b>@order.OrderedProductsDto.Select(o => o.ProductDto).ToList().Sum(p => p.Price) kr</p>
+                                            <hr />
+                                        }                          
+                                    </ul>
+                                }
+                                
+                            break;
+                            case "payment":
+                            
+
+                            break;
+
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        
+           
+    </Authorized>
+</AuthorizeView>
+}
+
+@code {
+
+    UserDto? dbUser;
+    string pageName = "userinfo";
+
+    IEnumerable<OrderDto> orderHistory;
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        try
+        {  
+            var azureUser = await GraphServiceClient.Me.Request().GetAsync();
+
+            dbUser = await HttpClient.GetFromJsonAsync<UserDto>(HttpClient.BaseAddress + ("api/user/" + azureUser.Id));
+
+            if(dbUser.UserId == null)
+            {
+                await HttpClient.PostAsJsonAsync<CreateUserModel>(HttpClient.BaseAddress + ("api/user"), new CreateUserModel 
+                { UserId = azureUser.Id, 
+                    FirstName = "", 
+                    LastName = "", 
+                    Email = azureUser.UserPrincipalName, 
+                    Address = new AddressModel{City = "", Street = "", PostNumber = ""}, 
+                    PhoneNumber = "",
+                    //Ändra till false när vi är klara, gör bara så att om vi i teamet loggar in blir vi admins så vi kan testa produkten.
+                    IsAdmin = true
+                });
+            }
+
+            SharedClass.activeUser = dbUser;
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+
+        GetOrderHistory();
+    }
+    private EditForm? editForm;
+
+    private async Task HandleFormSubmit()
+    {
+        if (editForm.EditContext.Validate())
+        {
+            await UpdateUser();
+        }
+    }
+
+    private async Task UpdateUser()
+    {
+        try
+        {
+            var updateUserModel = new UpdateUserModel
+            {
+                UserId = dbUser.UserId,
+                FirstName = dbUser.FirstName,
+                LastName = dbUser.LastName,
+                Email = dbUser.Email,
+                PhoneNumber = dbUser.PhoneNumber,
+                Address = new AddressModel
+                {
+                    City = dbUser.Address.City,
+                    Street = dbUser.Address.Street,
+                    PostNumber = dbUser.Address.PostNumber,
+                }
+
+            };
+
+            await HttpClient.PutAsJsonAsync<UpdateUserModel>("api/user", updateUserModel);
+            ToastService.ShowSuccess("Information uppdaterad.");
+            Navigation.NavigateTo("/profile");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error updating user: " + ex.Message);
+        }
+    }
+
+    private async void GetOrderHistory()
+    {
+        orderHistory = await HttpClient.GetFromJsonAsync<IEnumerable<OrderDto>>(HttpClient.BaseAddress + "api/order/?userId=" + dbUser.UserId);
+    }
+
+    private async Task BeginLogout(MouseEventArgs args)
+    {
+        await SignOutManager.SetSignOutState();
+        Navigation.NavigateTo("authentication/logout");
+    }
+
+    private void AdminNavigation()
+    {
+        Navigation.NavigateTo("/admin");
+    }
+
+    
+}
+
+<style>
+    .bg-sidebar {
+    background-color: #2C1A4D;
+    color: #FFFFFF;
+}
+
+    .nav-link {
+        color: #FFFFFF;
+        font-weight: 500;
+    }
+
+
+    .nav > li > button:hover {
+    background-color: transparent;
+    color: #FFFFFF;
+    transform: scale(1.2);
+}
+</style>

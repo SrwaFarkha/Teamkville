@@ -1,0 +1,89 @@
+﻿@using Microsoft.AspNetCore.Components.Forms;
+@using TeamKville.Shared
+@using Microsoft.AspNetCore.Components
+@using Azure.Storage.Blobs
+@inject IToastService ToastService
+
+<div class="pt-3 pb-2 width-class">
+	<h3 >Skapa ett event</h3>
+	<hr />
+</div>
+
+<div class="container">
+
+	<EditForm Model="newEvent" OnSubmit="CreateEvent" class="width-class">
+		<DataAnnotationsValidator />
+		<div class="mb-3">
+			<label for="name" class="form-label">Namn på event/lan</label>
+			<InputText required class="form-control " id="name" @bind-Value="newEvent.Name"/>
+			<ValidationMessage For="() => newEvent.Name" />
+		</div>
+
+		<div class="mb-3">
+			<label for="description" class="form-label">Beskrivning</label>
+			<InputTextArea type="text" class="form-control" id="description" @bind-Value="newEvent.Description"/>
+			<ValidationMessage For="() => newEvent.Description" />
+		</div>
+
+		<div class="mb-3">
+			<label for="image" class="form-label">Bild</label>
+			<InputFile type="file" class="form-control" id="image" OnChange="@LoadFile"/>
+		</div>
+
+		<div class="mb-3">
+			<label for="date" class="form-label">Datum</label>
+			<InputDate class="form-control" id="date" @bind-Value="newEvent.Date"/>
+		</div>
+		<button type="submit" class="btn btn-primary">Skapa</button>
+
+	</EditForm>
+
+</div>
+
+
+@code {
+
+	private EventDto newEvent = new EventDto {Date = DateTime.Now};
+	Stream? image;
+
+	private async void CreateEvent()
+	{
+
+
+		var result = await HttpClient.PostAsJsonAsync<EventDto>(HttpClient.BaseAddress + "event/create", newEvent);
+
+		if(result.StatusCode == System.Net.HttpStatusCode.OK)
+		{
+
+			BlobContainerClient blobContainerClient = new BlobContainerClient(SharedClass.connectionStringBlob, "event");
+			await blobContainerClient.UploadBlobAsync($"{newEvent.Name}.png", image);
+			newEvent = new EventDto();
+			ToastService.ShowSuccess("Lyckades lägga till ett event!");
+		}
+		else
+		{
+			ToastService.ShowError("Något gick fel...");
+		}
+
+	}
+
+	private async Task LoadFile(InputFileChangeEventArgs e)
+	{
+		image = e.File.OpenReadStream(16777215);
+	}
+
+}
+
+<style>
+
+	@@media (min-width: 575px) and (max-width: 767px) {
+		.width-class {
+			width:70%;
+		}
+	}
+
+	.validation-message {
+		color: red;
+	}
+
+</style>

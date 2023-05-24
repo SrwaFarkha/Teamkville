@@ -1,0 +1,66 @@
+@inherits LayoutComponentBase
+@inject Microsoft.Graph.GraphServiceClient GraphServiceClient
+@using Blazored.Toast.Configuration;
+@using Blazored.Toast;
+
+<BlazoredToasts />
+    <Navbar/>             
+    <div class="side-background d-flex flex-column">
+        <main role="main" class="container p-0 flex-grow-1">
+            
+            <div class="body shadow">
+                @if(handledLogin)
+                {
+                    @Body 
+                }          
+            </div>
+        </main>
+        
+        <Footer />
+    </div>
+
+
+@code{
+
+    bool handledLogin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InvokeAsync(LoadUser);
+        TeamKville.Shared.SharedClass.allProducts = await HttpClient.GetFromJsonAsync<List<ProductDto>>(HttpClient.BaseAddress + "api/product");
+    }
+
+    async Task LoadUser()
+    {
+        var azureUser = await GraphServiceClient.Me.Request().GetAsync();
+
+        if(azureUser.Id != null)
+        {
+            TeamKville.Shared.SharedClass.activeUser = await HttpClient.GetFromJsonAsync<UserDto>(HttpClient.BaseAddress + ("api/user/" + azureUser.Id));
+            handledLogin = true;
+        }
+        else
+        {
+            handledLogin = true;
+        }
+  
+    }
+        
+}
+
+<style>
+
+    main {
+        font-family: 'Montserrat', sans-serif;
+    }
+
+    .side-background {
+        min-height: 100vh;
+        background-color: lightgray;
+    }
+
+    .body{
+        background-color: white;
+    }
+
+</style>
